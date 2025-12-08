@@ -1,0 +1,125 @@
+import arcade
+import numpy as np
+
+WIDTH = 1280
+HEIGHT = 720
+
+ANCHORS = ['center', 'top_left', 'top_right', 'top_center', 'bottom_left', 'bottom_right', 'bottom_center', 'left_center', 'right_center']
+        
+
+class Container:
+    def __init__(self, x, y, width, height, color, rescale=True, keep_proportion=False, anchor='center'):
+        if anchor not in ANCHORS:
+            raise ValueError("Anchors must be one oh these values :" \
+            "'center', 'top_left', 'top_right', 'top_center', 'bottom_left', 'bottom_right', 'bottom_center', 'left_center', 'right_center'")
+        
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.color = color
+        self.rescale = rescale
+        self.keep_proportion = keep_proportion
+        self.anchor = anchor
+
+        # Original dim
+        self.original_width = width
+        self.original_height = height
+        self.original_x = x
+        self.original_y = y
+    
+    def draw(self):
+        arcade.draw_lbwh_rectangle_filled(self.x, self.y, self.width, self.height, self.color)
+
+    def compute_anchor(self, anchor, scale_x, scale_y):
+        if anchor == 'center':
+            center_x = (self.original_x + self.original_width / 2) * scale_x
+            center_y = (self.original_y + self.original_height / 2) * scale_y
+            new_x = center_x - self.width / 2
+            new_y = center_y - self.height / 2
+        elif anchor == 'top_left':
+            new_x = self.original_x * scale_x
+            new_y = (self.original_y + self.original_height) * scale_y - self.height
+        elif anchor == 'top_right':
+            new_x = (self.original_x + self.original_width) * scale_x - self.width
+            new_y = (self.original_y + self.original_height) * scale_y - self.height
+        elif anchor == 'top_center':
+            center_x = (self.original_x + self.original_width / 2) * scale_x
+            new_x = center_x - self.width / 2
+            new_y = (self.original_y + self.original_height) * scale_y - self.height
+        elif anchor == 'bottom_left':
+            new_x = self.original_x * scale_x
+            new_y = self.original_y * scale_y
+        elif anchor == 'bottom_right':
+            new_x = (self.original_x + self.original_width) * scale_x - self.width
+            new_y = self.original_y * scale_y
+        elif anchor == 'bottom_center':
+            center_x = (self.original_x + self.original_width / 2) * scale_x
+            new_x = center_x - self.width / 2
+            new_y = self.original_y * scale_y
+        elif anchor == 'left_center':
+            center_y = (self.original_y + self.original_height / 2) * scale_y
+            new_x = self.original_x * scale_x
+            new_y = center_y - self.height / 2
+        elif anchor == 'right_center':
+            center_y = (self.original_y + self.original_height / 2) * scale_y
+            new_x = (self.original_x + self.original_width) * scale_x - self.width
+            new_y = center_y - self.height / 2
+
+        return new_x, new_y
+
+    def rescale_container(self, x_scale, y_scale):
+        global_scale = None
+        if self.keep_proportion:
+            global_scale = min(x_scale, y_scale)
+
+        if self.rescale:
+            self.width = self.original_width * (global_scale if global_scale != None else x_scale)
+            self.height = self.original_height * (global_scale if global_scale != None else y_scale)
+
+        new_x, new_y = self.compute_anchor(self.anchor, x_scale, y_scale)
+        self.x = new_x
+        self.y = new_y
+
+
+class RaceWindow(arcade.Window):
+    def __init__(self, title, track, circuit_info):
+        super().__init__(WIDTH, HEIGHT, title, resizable=True)
+        arcade.set_background_color(arcade.color.BLACK)
+
+        # Track container
+        self.tc_margin = [0.05, 0.15, 0.05, 0.05] # Top, Bottom, Left, Right
+        self.tc_input = [
+            self.tc_margin[2]*WIDTH,
+            self.tc_margin[1]*HEIGHT,
+            WIDTH - (self.tc_margin[2]*WIDTH + self.tc_margin[3]*WIDTH),
+            HEIGHT - (self.tc_margin[0]*HEIGHT + self.tc_margin[1]*HEIGHT)
+        ]
+
+        self.containers = [
+            Container(self.tc_input[0], self.tc_input[1], self.tc_input[2], self.tc_input[3], arcade.color.YELLOW, keep_proportion=False, anchor='bottom_center')
+        ]
+
+    def on_draw(self):
+        self.clear()
+
+        for c in self.containers:
+            c.draw()
+
+    def on_resize(self, width, height):
+        super().on_resize(width, height)
+
+        x_scale = width / WIDTH
+        y_scale = height / HEIGHT
+
+        for c in self.containers:
+            c.rescale_container(x_scale, y_scale)
+
+    def run(self):
+        """Lance la boucle principale."""
+        arcade.run()
+
+
+if __name__ == "__main__":
+    win = RaceWindow('Race', 1, 1)
+    win.run()

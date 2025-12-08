@@ -1,0 +1,6 @@
+formula1/
+
+__pycache__/
+*.pyc 
+*.pyo 
+*.pyd 
