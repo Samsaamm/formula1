@@ -5,11 +5,83 @@ WIDTH = 1280
 HEIGHT = 720
 
 ANCHORS = ['center', 'top_left', 'top_right', 'top_center', 'bottom_left', 'bottom_right', 'bottom_center', 'left_center', 'right_center']
-SCROLL_FACTOR = 1        
+SCROLL_FACTOR = 1  
+
+
+class Object:
+    def __init__(self, x, y, width, height, rescale=True, keep_proportion=False, anchor='center'):
+        if anchor not in ANCHORS:
+            raise ValueError("Anchors must be one oh these values :" \
+            "'center', 'top_left', 'top_right', 'top_center', 'bottom_left', 'bottom_right', 'bottom_center', 'left_center', 'right_center'")
+        
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.rescale = rescale
+        self.keep_proportion = keep_proportion
+        self.anchor = anchor
+
+        # Original dim
+        self.original_width = width
+        self.original_height = height
+        self.original_x = x
+        self.original_y = y
+
+    def compute_anchor(self, anchor, scale_x, scale_y):
+        if anchor == 'center':
+            center_x = (self.original_x + self.original_width / 2) * scale_x
+            center_y = (self.original_y + self.original_height / 2) * scale_y
+            new_x = center_x - self.width / 2
+            new_y = center_y - self.height / 2
+        elif anchor == 'top_left':
+            new_x = self.original_x * scale_x
+            new_y = (self.original_y + self.original_height) * scale_y - self.height
+        elif anchor == 'top_right':
+            new_x = (self.original_x + self.original_width) * scale_x - self.width
+            new_y = (self.original_y + self.original_height) * scale_y - self.height
+        elif anchor == 'top_center':
+            center_x = (self.original_x + self.original_width / 2) * scale_x
+            new_x = center_x - self.width / 2
+            new_y = (self.original_y + self.original_height) * scale_y - self.height
+        elif anchor == 'bottom_left':
+            new_x = self.original_x * scale_x
+            new_y = self.original_y * scale_y
+        elif anchor == 'bottom_right':
+            new_x = (self.original_x + self.original_width) * scale_x - self.width
+            new_y = self.original_y * scale_y
+        elif anchor == 'bottom_center':
+            center_x = (self.original_x + self.original_width / 2) * scale_x
+            new_x = center_x - self.width / 2
+            new_y = self.original_y * scale_y
+        elif anchor == 'left_center':
+            center_y = (self.original_y + self.original_height / 2) * scale_y
+            new_x = self.original_x * scale_x
+            new_y = center_y - self.height / 2
+        elif anchor == 'right_center':
+            center_y = (self.original_y + self.original_height / 2) * scale_y
+            new_x = (self.original_x + self.original_width) * scale_x - self.width
+            new_y = center_y - self.height / 2
+
+        return new_x, new_y
+
+    def rescal_obj(self, x_scale, y_scale):
+        global_scale = min(x_scale, y_scale)
+
+        if self.rescale:
+            self.width = self.original_width * (global_scale if self.keep_proportion else x_scale)
+            self.height = self.original_height * (global_scale if self.keep_proportion else y_scale)
+
+        new_x, new_y = self.compute_anchor(self.anchor, x_scale, y_scale)
+        self.x = new_x
+        self.y = new_y
+
+
+
 
 
 class Container:
-    def __init__(self, x, y, width, height, color, rescale=True, keep_proportion=False, anchor='center', scrollable_x=False, scrollable_y=False, zoomable=False):
+    def __init__(self, x, y, width, height, color, rescale=True, keep_proportion=False, anchor='center', scrollable_x=False, scrollable_y=False, zoomable=False, overflow=False):
         if anchor not in ANCHORS:
             raise ValueError("Anchors must be one oh these values :" \
             "'center', 'top_left', 'top_right', 'top_center', 'bottom_left', 'bottom_right', 'bottom_center', 'left_center', 'right_center'")
@@ -25,15 +97,53 @@ class Container:
         self.scrollable_x = scrollable_x
         self.scrollable_y = scrollable_y
         self.zoomable = zoomable
+        self.overflow = overflow
 
         # Original dim
         self.original_width = width
         self.original_height = height
         self.original_x = x
         self.original_y = y
+
+        # Draw 
+        self.function = []
+        self.args = []
+        self.proportion_width = width
+        self.proportion_height = height
     
     def draw(self):
         arcade.draw_lbwh_rectangle_filled(self.x, self.y, self.width, self.height, self.color)
+
+        for i, f in enumerate(self.function):
+            if len(self.args[i][0]) >= 1:
+                points_arr = np.array(self.args[i][0])
+                xs = points_arr[:, 0]
+                ys = points_arr[:, 1]
+                xs, ys = self.interpolate_points(xs, ys)
+
+                xs, ys = self.to_screen_array(xs, ys)
+                points = self.overflow_hidden(np.column_stack((xs, ys)))
+                for j in range(len(points)):
+                    f(points[j], *self.args[i][1:])
+
+    def overflow_hidden(self, points):
+        if self.overflow == False:
+            mask = (points[:, 0] >= self.x) & (points[:, 0] <= (self.x + self.width)) & \
+                   (points[:, 1] >= self.y) & (points[:, 1] <= (self.y + self.height))
+
+            out, seg = [], []
+            for i in range(len(mask)):
+                if mask[i]:
+                    seg.append(points[i])
+                else:
+                    if seg:
+                        out.append(seg)
+                        seg = []
+            if seg:
+                out.append(seg)
+            return out
+        else:
+            return points
 
     def compute_anchor(self, anchor, scale_x, scale_y):
         if anchor == 'center':
@@ -73,13 +183,14 @@ class Container:
         return new_x, new_y
 
     def rescale_container(self, x_scale, y_scale):
-        global_scale = None
-        if self.keep_proportion:
-            global_scale = min(x_scale, y_scale)
+        
+        global_scale = min(x_scale, y_scale)
+        self.proportion_width = self.original_width * global_scale
+        self.proportion_height = self.original_height * global_scale
 
         if self.rescale:
-            self.width = self.original_width * (global_scale if global_scale != None else x_scale)
-            self.height = self.original_height * (global_scale if global_scale != None else y_scale)
+            self.width = self.original_width * (global_scale if self.keep_proportion else x_scale)
+            self.height = self.original_height * (global_scale if self.keep_proportion else y_scale)
 
         new_x, new_y = self.compute_anchor(self.anchor, x_scale, y_scale)
         self.x = new_x
@@ -96,8 +207,8 @@ class Container:
         return x_local, y_local
     
     def to_screen_array(self, x_array: np.ndarray, y_array: np.ndarray):
-        x_screen = self.x + (x_array / self.original_width) * self.width
-        y_screen = self.y + (y_array / self.original_height) * self.height
+        x_screen = self.x + (x_array / self.original_width) * self.proportion_width
+        y_screen = self.y + (y_array / self.original_height) * self.proportion_height
         return x_screen, y_screen
     
     def to_local_array(self, x_array: np.ndarray, y_array: np.ndarray):
@@ -107,7 +218,13 @@ class Container:
     
     def zoom(self, x, y, scroll_x, scroll_y):
         print(f"Scroll détecté : scroll_x={scroll_x}, scroll_y={scroll_y}")
-        
+
+    def interpolate_points(self, xs, ys, inter_points=2000):
+        t_old = np.linspace(0, 1, len(xs))
+        t_new = np.linspace(0, 1, inter_points)
+        xs_i = np.interp(t_new, t_old, xs)
+        ys_i = np.interp(t_new, t_old, ys)
+        return xs_i, ys_i   
     
 
 
@@ -144,6 +261,10 @@ class RaceWindow(arcade.Window):
             Container(self.tc_input[0], self.tc_input[1], self.tc_input[2], self.tc_input[3], arcade.color.YELLOW, keep_proportion=False, anchor='bottom_center', zoomable=True)
         ]
 
+        test_point = [(100, 100), (1000, 100), (1000, 1000), (100, 200), (100, 100)]
+        self.in_container(0, arcade.draw_line_strip, test_point, arcade.color.GRAY, 4)
+
+
     def on_mouse_scroll(self, x, y, scroll_x, scroll_y):
         for c in self.containers:
             if c.zoomable and x >= c.x and x <= (c.x + c.width) and y >= c.y and y <= (c.y + c.height):
@@ -152,16 +273,9 @@ class RaceWindow(arcade.Window):
 
     def in_container(self, container_index, func, *args, **kwargs):
         cont = self.containers[container_index]
-        if len(args[0]) >= 1:
-            points_arr = np.array(args[0])
-            xs = points_arr[:, 0]
-            ys = points_arr[:, 1]
 
-            xs, ys = cont.to_screen_array(xs, ys)
-
-            points = np.column_stack((xs, ys)).tolist()
-
-        return func(points, *args[1:])
+        cont.function.append(func)
+        cont.args.append(args)
 
     def on_draw(self):
         self.clear()
@@ -169,9 +283,7 @@ class RaceWindow(arcade.Window):
         for c in self.containers:
             c.draw()
 
-        test_point = [(100, 100), (1000, 100), (1000, 200), (100, 200), (100, 100)]
-        self.in_container(0, arcade.draw_line_strip, test_point, arcade.color.GRAY, 4)
-
+        
     def on_resize(self, width, height):
         super().on_resize(width, height)
 

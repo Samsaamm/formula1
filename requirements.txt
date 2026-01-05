@@ -4,3 +4,4 @@ matplotlib
 arcade
 ipykernel
 jupyter
+fonttools

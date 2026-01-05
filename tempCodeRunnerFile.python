@@ -1,125 +1,154 @@
+import NewRenderer as rend
 import arcade
+import Main
 import numpy as np
 
-WIDTH = 1280
-HEIGHT = 720
 
-ANCHORS = ['center', 'top_left', 'top_right', 'top_center', 'bottom_left', 'bottom_right', 'bottom_center', 'left_center', 'right_center']
-        
+class DriverInfos:
+    i = 0
+    def __init__(self, parent):
+        self.container = rend.Container(parent, 0, DriverInfos.i*25, 200, 25, arcade.color.RED, rescale=False, keep_proportion=True, anchor="center")
+        self.container.enable_border(arcade.color.BLACK)
+        self.index_container = rend.Container(self.container, 0, 0, 25, 25, arcade.color.BLACK, rescale=False, keep_proportion=True, anchor="center")
+        self.index = rend.TextObject(self.index_container, rescale=False, keep_proportion=True, anchor="center")
+        self.index.set_function(arcade.Text, str(20 - DriverInfos.i), 25, 30, arcade.color.WHITE, font_name="Formula1Bold")
 
-class Container:
-    def __init__(self, x, y, width, height, color, rescale=True, keep_proportion=False, anchor='center'):
-        if anchor not in ANCHORS:
-            raise ValueError("Anchors must be one oh these values :" \
-            "'center', 'top_left', 'top_right', 'top_center', 'bottom_left', 'bottom_right', 'bottom_center', 'left_center', 'right_center'")
-        
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-        self.color = color
-        self.rescale = rescale
-        self.keep_proportion = keep_proportion
-        self.anchor = anchor
+        DriverInfos.i += 1
 
-        # Original dim
-        self.original_width = width
-        self.original_height = height
-        self.original_x = x
-        self.original_y = y
+
+
     
-    def draw(self):
-        arcade.draw_lbwh_rectangle_filled(self.x, self.y, self.width, self.height, self.color)
-
-    def compute_anchor(self, anchor, scale_x, scale_y):
-        if anchor == 'center':
-            center_x = (self.original_x + self.original_width / 2) * scale_x
-            center_y = (self.original_y + self.original_height / 2) * scale_y
-            new_x = center_x - self.width / 2
-            new_y = center_y - self.height / 2
-        elif anchor == 'top_left':
-            new_x = self.original_x * scale_x
-            new_y = (self.original_y + self.original_height) * scale_y - self.height
-        elif anchor == 'top_right':
-            new_x = (self.original_x + self.original_width) * scale_x - self.width
-            new_y = (self.original_y + self.original_height) * scale_y - self.height
-        elif anchor == 'top_center':
-            center_x = (self.original_x + self.original_width / 2) * scale_x
-            new_x = center_x - self.width / 2
-            new_y = (self.original_y + self.original_height) * scale_y - self.height
-        elif anchor == 'bottom_left':
-            new_x = self.original_x * scale_x
-            new_y = self.original_y * scale_y
-        elif anchor == 'bottom_right':
-            new_x = (self.original_x + self.original_width) * scale_x - self.width
-            new_y = self.original_y * scale_y
-        elif anchor == 'bottom_center':
-            center_x = (self.original_x + self.original_width / 2) * scale_x
-            new_x = center_x - self.width / 2
-            new_y = self.original_y * scale_y
-        elif anchor == 'left_center':
-            center_y = (self.original_y + self.original_height / 2) * scale_y
-            new_x = self.original_x * scale_x
-            new_y = center_y - self.height / 2
-        elif anchor == 'right_center':
-            center_y = (self.original_y + self.original_height / 2) * scale_y
-            new_x = (self.original_x + self.original_width) * scale_x - self.width
-            new_y = center_y - self.height / 2
-
-        return new_x, new_y
-
-    def rescale_container(self, x_scale, y_scale):
-        global_scale = None
-        if self.keep_proportion:
-            global_scale = min(x_scale, y_scale)
-
-        if self.rescale:
-            self.width = self.original_width * (global_scale if global_scale != None else x_scale)
-            self.height = self.original_height * (global_scale if global_scale != None else y_scale)
-
-        new_x, new_y = self.compute_anchor(self.anchor, x_scale, y_scale)
-        self.x = new_x
-        self.y = new_y
 
 
-class RaceWindow(arcade.Window):
-    def __init__(self, title, track, circuit_info):
-        super().__init__(WIDTH, HEIGHT, title, resizable=True)
-        arcade.set_background_color(arcade.color.BLACK)
 
-        # Track container
-        self.tc_margin = [0.05, 0.15, 0.05, 0.05] # Top, Bottom, Left, Right
-        self.tc_input = [
-            self.tc_margin[2]*WIDTH,
-            self.tc_margin[1]*HEIGHT,
-            WIDTH - (self.tc_margin[2]*WIDTH + self.tc_margin[3]*WIDTH),
-            HEIGHT - (self.tc_margin[0]*HEIGHT + self.tc_margin[1]*HEIGHT)
-        ]
+def main():
+    rend.FontManager.load_font("Formula1-Bold_web_0.ttf", "Formula1Bold")
+    win = rend.RaceWindow("Race", 1280, 720)
 
-        self.containers = [
-            Container(self.tc_input[0], self.tc_input[1], self.tc_input[2], self.tc_input[3], arcade.color.YELLOW, keep_proportion=False, anchor='bottom_center')
-        ]
+    # Container
+    track_container = rend.Container(win, 0, 0, 1280, 720, arcade.color.RED, anchor='bottom_center', keep_proportion=True, visible=False, scrollable_x=True, scrollable_y=True, zoomable=True)
+    track_container.set_zoom_limit(200, 200)
+    load_track(track_container)
+    position = rend.Container(win, 0, 100, 200, 600, arcade.color.YELLOW, rescale=False, anchor='top_left', keep_proportion=True)
+    header = rend.Container(position, 0, 500, 200, 100, (42, 42, 42), rescale=False, keep_proportion=True, anchor="top_left", name="header")
+    f1_logo_container = rend.Container(header, 25, 25, 150, 75, arcade.color.RED, rescale=False, keep_proportion=True, anchor="top_center", visible=False)
+    f1_logo = rend.TextureObject(f1_logo_container, "resources\F1Logo.png", 0, -40, 150, 150, rescale=False)
+    lap = rend.Container(header, 0, 0, 200, 25, arcade.color.BLUE, rescale=False, keep_proportion=True, anchor="bottom_left")
+    classement = rend.Container(position, 0, 0, 200, 500, arcade.color.PINK, rescale=False, keep_proportion=True, anchor="bottom_center")
 
-    def on_draw(self):
-        self.clear()
+    pilote = []
+    for j in range(20):
+        pilote.append(DriverInfos(classement))
 
-        for c in self.containers:
-            c.draw()
 
-    def on_resize(self, width, height):
-        super().on_resize(width, height)
+    win.run()
+    pass
 
-        x_scale = width / WIDTH
-        y_scale = height / HEIGHT
+def _rotate_points(circuit_rotation, points, plot_x, plot_y):
+        """Applique la rotation aux points autour du centre."""
+        center_x = np.mean(plot_x)
+        center_y = np.mean(plot_y)
+        
+        cos_r = np.cos(circuit_rotation)
+        sin_r = np.sin(circuit_rotation)
+        
+        rotated = []
+        for x, y in points:
+            tx = x - center_x
+            ty = y - center_y
+            rx = tx * cos_r - ty * sin_r
+            ry = tx * sin_r + ty * cos_r
+            rotated.append((rx + center_x, ry + center_y))
+        
+        return rotated
 
-        for c in self.containers:
-            c.rescale_container(x_scale, y_scale)
+def load_track(container):
+    ret = Main.main(2022, 7)
+    track, circuit_info = ret[0], ret[1]
+    print(track.columns)
+    circuit_rotation = circuit_info.rotation
+    plot_x = track["X"].to_numpy()
+    plot_y = track["Y"].to_numpy()
+    # Calculer les gradients
+    dx = np.gradient(plot_x)
+    dy = np.gradient(plot_y)
+    # Normaliser
+    norm = np.hypot(dx, dy)
+    norm[norm == 0] = 1.0
+    dx /= norm
+    dy /= norm
+    # Calculer les normales perpendiculaires
+    nx = -dy
+    ny = dx
+    # Calculer les bords de la piste
+    track_width = 200
+    half_width = track_width / 2
+    x_inner = plot_x + nx * half_width
+    x_outer = plot_x - nx * half_width
+    y_inner = plot_y + ny * half_width
+    y_outer = plot_y - ny * half_width
+    # Stocker les points monde
+    world_inner_points = list(zip(x_inner, y_inner))
+    world_outer_points = list(zip(x_outer, y_outer))
 
-    def run(self):
-        """Lance la boucle principale."""
-        arcade.run()
+    if circuit_rotation != 0:
+        world_inner_points = _rotate_points(circuit_rotation, world_inner_points, plot_x, plot_y)
+        world_outer_points = _rotate_points(circuit_rotation, world_outer_points, plot_x, plot_y)
+
+    all_x = list(x_inner) + list(x_outer)
+    all_y = list(y_inner) + list(y_outer)
+    
+    if circuit_rotation != 0:
+        all_x = [p[0] for p in world_inner_points + world_outer_points]
+        all_y = [p[1] for p in world_inner_points + world_outer_points]
+    
+    world_bounds = {
+        'x_min': np.min(all_x),
+        'x_max': np.max(all_x),
+        'y_min': np.min(all_y),
+        'y_max': np.max(all_y),
+        'center_x': (np.min(all_x) + np.max(all_x)) / 2,
+        'center_y': (np.min(all_y) + np.max(all_y)) / 2
+    }
+
+    
+
+    width = 1000
+    height = 650
+    margin = 0.05  # 5% de marge
+
+    world_w = world_bounds['x_max'] - world_bounds['x_min']
+    world_h = world_bounds['y_max'] - world_bounds['y_min']
+
+    world_w = max(world_w, 1.0)
+    world_h = max(world_h, 1.0)
+
+    usable_w = width * (1 - 2 * margin)
+    usable_h = height * (1 - 2 * margin)
+
+    scale_x = usable_w / world_w
+    scale_y = usable_h / world_h
+    scale = min(scale_x, scale_y)
+
+    offset_x = (width - world_w * scale) / 2 - world_bounds['x_min'] * scale
+    offset_y = (height - world_h * scale) / 2 - world_bounds['y_min'] * scale
+
+    screen_inner_points = [
+        (x * scale + offset_x, y * scale + offset_y) 
+        for x, y in world_inner_points
+    ]
+    screen_outer_points = [
+        (x * scale + offset_x, y * scale + offset_y) 
+        for x, y in world_outer_points
+    ]
+
+    track_inner = rend.FunctionObject(container, arcade.draw_line_strip, screen_inner_points, arcade.color.GRAY, 4, color=arcade.color.WHITE, rescale=False, keep_proportion=True)
+    track_inner.set_zoom_limit(300, 300)
+    track_outer = rend.FunctionObject(container, arcade.draw_line_strip, screen_outer_points, arcade.color.GRAY, 4, color=arcade.color.WHITE, rescale=False, keep_proportion=True)
+    track_outer.set_zoom_limit(300, 300)
+
+
 
 
 if __name__ == "__main__":
-    win = RaceWindow('Race', 1, 1)
-    win.run()
+    main()

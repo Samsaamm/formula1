@@ -1,0 +1,1 @@
+self.notify_draw()
