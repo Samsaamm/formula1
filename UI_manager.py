@@ -54,8 +54,11 @@ class DriverInfos:
         self.container = rend.Container(parent, 0, DriverInfos.i*25, 200, 25, arcade.color.RED, rescale=False, keep_proportion=True, anchor="center")
         self.container.enable_border(arcade.color.BLACK)
         self.index_container = rend.Container(self.container, 0, 0, 25, 25, arcade.color.BLACK, rescale=False, keep_proportion=True, anchor="center")
-        self.index = rend.TextObject(self.index_container, rescale=False, keep_proportion=True, anchor="center")
-        self.index.set_function(arcade.Text, str(20 - DriverInfos.i), 25, 30, arcade.color.WHITE, font_name="Formula1Bold")
+        #self.index = rend.TextObject(self.index_container, rescale=False, keep_proportion=True, anchor="center")
+        #self.index.set_function(arcade.Text, str(20 - DriverInfos.i), 25, 30, arcade.color.WHITE, font_name="Formula1Bold")
+        self.index = rend.OptimalTextObject(self.index_container, x=12, y=6, color=arcade.color.WHITE, rescale=False, keep_proportion=True, anchor="center")
+        self.index.update_text(str(20 - DriverInfos.i))
+        self.index.update_font(font_name="Formula1Bold")
 
         DriverInfos.i += 1
 

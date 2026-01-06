@@ -8,6 +8,8 @@ import shutil
 from fontTools.ttLib import TTFont
 
 
+arcade.enable_timings()
+
 @dataclass
 class Config:
     """Configuration de la fenêtre"""
@@ -402,8 +404,21 @@ class FunctionObject(Object):
         x, y = 0, 0
         super().__init__(parent, x, y, parent.width, parent.height, color, visible, rescale, keep_proportion, anchor)
         self.function = None
+        self.initial_width = parent.width
+        self.initial_height = parent.height
+
+    def remap_point_on_zoom(self, scale_x, scale_y):
+        return [(x * scale_x, y * scale_y) for x, y in self.base_point]
 
     def apply_zoom(self, zoom_factor_x, zoom_factor_y):
+        super().apply_zoom(zoom_factor_x, zoom_factor_y)
+        scale_x = self.width / self.initial_width
+        scale_y = self.height / self.initial_height
+
+        self.radius = self.base_radius * min(scale_x, scale_y)
+        self.radius = max(1, self.radius)
+
+        self.point = self.remap_point_on_zoom(scale_x, scale_y)
         num = 0
         if self.function in (arcade.draw_circle_filled, arcade.draw_circle_outline):
             num = 3
@@ -411,7 +426,10 @@ class FunctionObject(Object):
     def set_function(self, function, *args, **kwargs):
         self.function = function
         if self.function in (arcade.draw_circle_filled, arcade.draw_circle_outline):
+            self.point = [(args[0], args[1])]
+            self.base_point = np.array(self.point, dtype=float)
             self.radius = args[2]
+            self.base_radius = self.radius
             self.color = args[3]
         self.args = args
         self.kwargs = kwargs
@@ -424,7 +442,7 @@ class FunctionObject(Object):
             raise ValueError("Plaese use set_function")
         
         if self.function in (arcade.draw_circle_filled, arcade.draw_circle_outline):
-            self.function(self.args[0] + self.parent.x, self.args[1] + self.parent.y, self.radius, self.color,*self.args[4:], **self.kwargs)
+            self.function(self.point[0][0] + self.x + self.drag_offset_x, self.point[0][1] + self.y + self.drag_offset_y, self.radius, self.color,*self.args[4:], **self.kwargs)
         super().draw()
 
 class LineObject(Object):
@@ -489,6 +507,7 @@ class TextObject(Object):
         x, y = 0, 0
         super().__init__(parent, x, y, 0, 0, color, visible, rescale, keep_proportion, anchor)
         self.function = None
+        self.text = None
 
     def update_dim(self):
         if self.text == None:
@@ -506,7 +525,7 @@ class TextObject(Object):
         if self.text == None:
             raise ValueError("Text doesn't exist. Please use set_function before update_text")
         self.text.text = new_text
-        self.update_dim
+        self.update_dim()
 
     def set_function(self, function, *args, **kwargs):
         self.function = function
@@ -514,7 +533,6 @@ class TextObject(Object):
         self.kwargs = kwargs
         self.text = self.function(*self.args, **self.kwargs)
         self.update_dim()
-        pass
 
     def draw(self):
         if not self.visible:
@@ -527,6 +545,35 @@ class TextObject(Object):
         self.text.draw()
         super().draw()
 
+class OptimalTextObject(Object):
+    def __init__(self, parent: Union['Object', arcade.Window], x=0, y=0, width=None, height=None, color=None, visible=True, rescale=True, keep_proportion=True, anchor='center'):
+        super().__init__(parent, x, y, 0, 0, color, visible, rescale, keep_proportion, anchor)
+        self.text_object: arcade.Text = arcade.Text("", x, y, color=color, anchor_x=anchor)
+        self.dirty = True
+
+    def update_text(self, new_text: str):
+        if self.text_object.text != new_text:
+            self.text_object.text = new_text
+            self.dirty = True
+
+    def update_font(self, font_name=None, font_size=None):
+        if font_name is not None:
+            self.text_object.font_name = font_name
+        if font_size is not None:
+            self.text_object.font_size = font_size
+        self.dirty = True
+
+    def draw(self):
+        if not self.visible:
+            return
+        if self.dirty:
+            self.width = self.text_object.content_width
+            self.height = self.text_object.content_height
+            self.dirty = False
+        self.text_object.x = self.x
+        self.text_object.y = self.y
+        self.text_object.draw()
+        super().draw()
 
 class TextureObject(Object):
     def __init__(self, parent: Union['Object', arcade.Window], path, x, y, width: Union[int, Literal["auto"]] = None, height: Union[int, Literal["auto"]] = None, **kwargs):
@@ -561,6 +608,7 @@ class RaceWindow(arcade.Window):
     def __init__(self, title, width, height):
         width = width or config.WIDTH
         height = height or config.HEIGHT
+        self.title = title
         super().__init__(width, height, title, resizable=True)
         arcade.set_background_color(arcade.color.BLACK)
 
@@ -632,7 +680,11 @@ class RaceWindow(arcade.Window):
         if button == arcade.MOUSE_BUTTON_LEFT:
             self.dragging = False
 
-    def clear(self):
+    def on_update(self, delta_time):
+        fps = arcade.get_fps()
+        self.set_caption(self.title + f" | {fps: .2f}")
+
+    def clear_all(self):
         pass
 
     def run(self):

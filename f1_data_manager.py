@@ -1,12 +1,9 @@
 import fastf1
 import numpy as np
 from typing import Union, Literal
-from multiprocessing import Pool, cpu_count
+from multiprocessing import cpu_count, Pool
+from joblib import Parallel, delayed
 
-def rotate(xy, *, angle):
-    rot_mat = np.array([[np.cos(angle), np.sin(angle)],
-                        [-np.sin(angle), np.cos(angle)]])
-    return np.matmul(xy, rot_mat)
 
 
 class ScheduleDataManager:
@@ -23,7 +20,7 @@ class RaceDataManager:
         self.load_session()
         self.load_circuit_rotation()
         self.load_drivers()
-        self._load_telemetry
+        self._load_telemetry()
 
     def load_session(self):
         self.session = fastf1.get_session(self.year, self.session_number, self.session_type)
@@ -43,7 +40,7 @@ class RaceDataManager:
         if lap_type == 'fast':
             lap = self.session.laps.pick_fastest()
         elif lap_type == 'box':
-            lap = self.session.laps.pick_box_laps(which='both').iloc[0]
+            lap = self.session.laps.pick_box_laps(which='in').iloc[0]
         else:
             raise ValueError("This lap_type doesn't exist")
         circuit_info = self.session.get_circuit_info()
@@ -51,12 +48,22 @@ class RaceDataManager:
         track = lap.get_pos_data().loc[:, ('X', 'Y')]
         track = track._append(track.iloc[:5], ignore_index=True)
         rotated_track = track
-        #rotated_track = rotate(track, angle=circuit_info.rotation / 180 * np.pi)
         rotated_track.columns = ["X", "Y"]
         return rotated_track
     
     def get_weather(self):
         return self.session.weather_data
+    
+    def load_driver_telemetry(self, driver_code, laps_df):
+        print(f"Getting telemetry from driver {driver_code}")
+        x, y = [], []
+        for _, lap in laps_df.iterrows():
+            telemetry = lap.get_telemetry()
+            if telemetry.empty:
+                continue
+            x.append(telemetry['X'].to_numpy())
+            y.append(telemetry['Y'].to_numpy())
+            return {'code': driver_code, 'data': {'x': x, 'y': y}}
     
     def _load_driver_telemetry(self, args):
         driver, driver_code = args
@@ -91,17 +98,20 @@ class RaceDataManager:
         self.drivers_data = {}
 
         print(f"Getting data from {len(self.drivers)}...")
-        driver_arg = [(d, self.drivers_codes[d]) for d in self.drivers]
+        """ driver_arg = [(d, self.drivers_codes[d]) for d in self.drivers]
         num_process = min(cpu_count(), len(self.drivers))
         with Pool(processes=num_process) as pool:
             self.results = pool.map(self._load_driver_telemetry, driver_arg)
 
-        print(len(self.results[0]['data']['x']))
+        print(len(self.results[0]['data']['x'])) """
 
+        driver_arg = [(code, self.session.laps.pick_drivers(driver)) for driver, code in self.drivers_codes.items()]
+        self.results = Parallel(n_jobs=-1)(delayed(self.load_driver_telemetry)(code, laps) for code, laps in driver_arg)
 
 if __name__ == "__main__":
     rdm = RaceDataManager(2021, 7, 'Q')
     """ print(rdm.session)
     print(rdm.drivers_codes)
     print(rdm.get_weather()) """
+    rdm._load_telemetry()
     
