@@ -54,64 +54,33 @@ class RaceDataManager:
     def get_weather(self):
         return self.session.weather_data
     
+    def get_max_lap(self):
+        return self.session.total_laps
+    
     def load_driver_telemetry(self, driver_code, laps_df):
         print(f"Getting telemetry from driver {driver_code}")
         x, y = [], []
-        for _, lap in laps_df.iterrows():
+        for i, lap in laps_df.iterrows():
             telemetry = lap.get_telemetry()
             if telemetry.empty:
                 continue
             x.append(telemetry['X'].to_numpy())
             y.append(telemetry['Y'].to_numpy())
-            return {'code': driver_code, 'data': {'x': x, 'y': y}}
-    
-    def _load_driver_telemetry(self, args):
-        driver, driver_code = args
-        print(f"Getting telemetry from driver {driver_code}")
-
-        laps = self.session.laps.pick_drivers(driver)
-        if laps.empty:
-            return
-        
-        x, y = [], []
-        telemetry = {
-            'code': driver_code,
-            'data': {
-                'x': x,
-                'y': y,
-            }
-        }
-
-        for _, lap in laps.iterlaps():
-            lap_telemetry = lap.get_telemetry()
-            lap_number = lap.LapNumber
-            if lap_telemetry.empty:
-                continue
-
-            telemetry['data']['x'].append(lap_telemetry["X"].to_numpy())
-            telemetry['data']['y'].append(lap_telemetry["Y"].to_numpy())
-
-        return telemetry
+            return {'code': driver_code, 'data': {'x': x, 'y': y}, 'lap': i}
         
 
     def _load_telemetry(self):
         self.drivers_data = {}
 
         print(f"Getting data from {len(self.drivers)}...")
-        """ driver_arg = [(d, self.drivers_codes[d]) for d in self.drivers]
-        num_process = min(cpu_count(), len(self.drivers))
-        with Pool(processes=num_process) as pool:
-            self.results = pool.map(self._load_driver_telemetry, driver_arg)
-
-        print(len(self.results[0]['data']['x'])) """
 
         driver_arg = [(code, self.session.laps.pick_drivers(driver)) for driver, code in self.drivers_codes.items()]
         self.results = Parallel(n_jobs=-1)(delayed(self.load_driver_telemetry)(code, laps) for code, laps in driver_arg)
 
 if __name__ == "__main__":
-    rdm = RaceDataManager(2021, 7, 'Q')
+    rdm = RaceDataManager(2021, 7, 'R')
     """ print(rdm.session)
     print(rdm.drivers_codes)
     print(rdm.get_weather()) """
-    rdm._load_telemetry()
+    print(rdm.get_max_lap())
     

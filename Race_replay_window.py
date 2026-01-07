@@ -2,7 +2,7 @@ import NewRenderer as rend
 import arcade
 import Main
 import numpy as np
-from UI_manager import DriverInfos, RaceInfos, StartingLight
+from UI_manager import DriverInfos, RaceInfos, StartingLight, LeaderBoard
 from f1_data_manager import RaceDataManager, ScheduleDataManager
 from typing import Union, Literal
 
@@ -57,20 +57,12 @@ class RaceReplay(rend.RaceWindow):
         self.draw_track(track_container, 'fast')
         self.draw_track(track_container, 'box')
         self.driver_plot_test(track_container)
-        position = rend.Container(self, 0, 100, 200, 600, arcade.color.YELLOW, rescale=False, anchor='top_left', keep_proportion=True)
-        header = rend.Container(position, 0, 500, 200, 100, (42, 42, 42), rescale=False, keep_proportion=True, anchor="top_left", name="header")
-        f1_logo_container = rend.Container(header, 25, 25, 150, 75, arcade.color.RED, rescale=False, keep_proportion=True, anchor="top_center", visible=False)
-        f1_logo = rend.TextureObject(f1_logo_container, "resources\F1Logo.png", 0, -40, 150, 150, rescale=False)
-        lap = rend.Container(header, 0, 0, 200, 25, arcade.color.BLUE, rescale=False, keep_proportion=True, anchor="bottom_left")
-        classement = rend.Container(position, 0, 0, 200, 500, arcade.color.PINK, rescale=False, keep_proportion=True, anchor="bottom_center")
-        #race_infos = RaceInfos(self)
+
+        self.leaderbord = LeaderBoard(self, self.race_data.get_max_lap())
 
         self.debug = rend.TextObject(self)
         self.debug.set_function(arcade.Text, f"{self.race_time}", 0, 0, arcade.color.WHITE)
 
-        self.pilote = []
-        for j in range(20):
-            self.pilote.append(DriverInfos(classement))
 
     def world_to_screen(self, points):
         _cos_rot = np.cos(self.race_data.rotation)
@@ -114,7 +106,6 @@ class RaceReplay(rend.RaceWindow):
             x = d_data['data']['x'][0][0]
             y = d_data['data']['y'][0][0]
             p = self.world_to_screen(np.array([[x, y]]))
-            print(p[0][0], p[0][1])
             obj = rend.FunctionObject(container, rescale=False)
             obj.set_function(arcade.draw_circle_filled, p[0][0], p[0][1], 2, arcade.color.GREEN)
             obj.enable_border(arcade.color.GREEN)

@@ -9,10 +9,9 @@ class StartingLight:
     def __init__(self, parent):
         self.WIDTH = 300
         self.HEIGHT = 150
-        self.container = rend.Container(parent, parent.width / 2 - self.WIDTH / 2, parent.height - self.HEIGHT, self.WIDTH, self.HEIGHT, arcade.color.RED, anchor="center", visible=False)
-        self.high_part = rend.Container(self.container, 0, self.HEIGHT / 2, self.WIDTH, self.HEIGHT / 2, (15, 15, 15))
+        self.container = rend.Container(parent, parent.width / 2 - self.WIDTH / 2, parent.height - self.HEIGHT, self.WIDTH, self.HEIGHT, arcade.color.RED, rescale=False, anchor="top_center", visible=False)
+        self.high_part = rend.Container(self.container, 0, self.HEIGHT / 2, self.WIDTH, self.HEIGHT / 2, (15, 15, 15), rescale=False)
 
-        
         red_light_width = 40
         offset = (270 - 5*red_light_width) / 6
         x = 15 + offset
@@ -20,7 +19,7 @@ class StartingLight:
         self.upper_lights = []
         self.lower_lights = []
         for i in range(5):
-            block = rend.Container(self.container, x, 0, red_light_width, self.HEIGHT / 2, (15, 15, 15))
+            block = rend.Container(self.container, x, 0, red_light_width, self.HEIGHT / 2, (15, 15, 15), rescale=False)
             self.red_lights.append(block)
             x += red_light_width + offset
             upper_light = rend.FunctionObject(block)
@@ -41,8 +40,20 @@ class StartingLight:
             l.visible = state
 
 class LeaderBoard:
-    def __init__(self):
-        pass
+    def __init__(self, container, max_laps):
+        self.leaderbord_container = rend.Container(container, 0, 100, 200, 600, arcade.color.YELLOW, rescale=False, anchor='top_left', keep_proportion=True)
+        self.header = rend.Container(self.leaderbord_container, 0, 500, 200, 100, (15, 15, 15), rescale=False, keep_proportion=True, anchor="top_left", name="header")
+        self.f1_logo_container = rend.Container(self.header, 25, 25, 150, 75, arcade.color.RED, rescale=False, keep_proportion=True, anchor="top_center", visible=False)
+        self.f1_logo = rend.TextureObject(self.f1_logo_container, "resources\F1Logo.png", 0, -40, 150, 150, rescale=False)
+        self.lap_container = rend.Container(self.header, 0, 0, 200, 25, arcade.color.BLUE, rescale=False, keep_proportion=True, anchor="bottom_left")
+        self.lap_text = rend.OptimalTextObject(self.lap_container, x=100, y=5, color=arcade.color.WHITE, anchor='center')
+        self.lap_text.update_text(f"1/{max_laps}")
+        self.lap_text.update_font(font_name="Formula1Bold")
+        self.ranking = rend.Container(self.leaderbord_container, 0, 0, 200, 500, arcade.color.PINK, rescale=False, keep_proportion=True, anchor="bottom_center")
+
+        self.pilot_lines = []
+        for j in range(20):
+            self.pilot_lines.append(DriverInfos(self.ranking))
 
 class RaceInfos:
     def __init__(self, parent):
@@ -67,5 +78,9 @@ class DriverInfos:
         cls.i = 0
 
 class DriverCard:
+    def __init__(self):
+        pass
+
+class TimeLine:
     def __init__(self):
         pass
